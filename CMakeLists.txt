@@ -17,9 +17,9 @@ find_package(GTest REQUIRED)
 file(GLOB HEADER_FILES "${CMAKE_SOURCE_DIR}/include/*.hpp")
 
 # Создаём статическую библиотеку
-add_library(${PROJECT_NAME}_imp STATIC "${CMAKE_SOURCE_DIR}/src/main.cpp" ${HEADER_FILES})
+add_library(${PROJECT_NAME}_imp INTERFACE ${HEADER_FILES})
 
-target_include_directories(${PROJECT_NAME}_imp PUBLIC
+target_include_directories(${PROJECT_NAME}_imp INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
@@ -36,7 +36,6 @@ file(GLOB TEST_SRC_FILES "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 
 add_executable(unit_tests "${TEST_SRC_FILES}")
 target_link_libraries(unit_tests PRIVATE ${PROJECT_NAME}_imp GTest::GTest GTest::Main)
-target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Включаем тестирование
 enable_testing()
