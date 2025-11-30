@@ -33,6 +33,19 @@ TEST_F(BookDatabaseTest, emplace_back) {
     ASSERT_EQ(*actual_authors.begin(), expected_book.author);
 }
 
+TEST_F(BookDatabaseTest, book_author_string_view_validity) {
+    std::string orig_author{"Author"};
+    const auto &actual_book = db_.EmplaceBack(Book{"1984", orig_author, 1949, Genre::SciFi, 4., 190});
+    ASSERT_EQ(actual_book.author, orig_author);
+
+    const auto &actual_authors = db_.GetAuthors();
+    ASSERT_EQ(actual_authors.size(), 1);
+    ASSERT_EQ(*actual_authors.begin(), actual_book.author);
+
+    orig_author += " Modified";
+    ASSERT_NE(*actual_authors.begin(), orig_author);
+}
+
 TEST_F(BookDatabaseTest, push_back) {
     const Book expected_book{"1984", "George Orwell", 1949, Genre::SciFi, 4., 190};
     db_.PushBack(expected_book);

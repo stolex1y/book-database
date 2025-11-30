@@ -6,13 +6,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # Не больше трёх ошибок за раз
     add_compile_options(-fmax-errors=3)
-endif()
+endif ()
 
 # Ищем необходимые библиотеки
 find_package(GTest REQUIRED)
+find_package(benchmark REQUIRED)
 
 file(GLOB HEADER_FILES "${CMAKE_SOURCE_DIR}/include/*.hpp")
 
@@ -20,7 +21,7 @@ file(GLOB HEADER_FILES "${CMAKE_SOURCE_DIR}/include/*.hpp")
 add_library(${PROJECT_NAME}_imp INTERFACE ${HEADER_FILES})
 
 target_include_directories(${PROJECT_NAME}_imp INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Создаём исполняемый таргет и линкуем к нему статическую библиотеку
@@ -40,3 +41,7 @@ target_link_libraries(unit_tests PRIVATE ${PROJECT_NAME}_imp GTest::GTest GTest:
 # Включаем тестирование
 enable_testing()
 add_test(NAME Tests COMMAND unit_tests)
+
+file(GLOB BENCHMARK_TEST_SRC_FILES "${CMAKE_SOURCE_DIR}/tests/benchmarks/*.cpp")
+add_executable(benchmark_tests "${BENCHMARK_TEST_SRC_FILES}")
+target_link_libraries(benchmark_tests PRIVATE ${PROJECT_NAME}_imp benchmark::benchmark benchmark::benchmark_main)

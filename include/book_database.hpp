@@ -30,61 +30,53 @@ public:
     BookDatabase() = default;
 
     BookDatabase(std::initializer_list<Book> books) {
-        for (auto &book : books) {
-            books_.emplace_back(book);
-            authors_.emplace(book.author);
+        for (const auto &book : books) {
+            EmplaceBack(book);
         }
     }
 
     template <typename Self>
-    auto begin(this Self &&self) {
+    [[nodiscard]] auto begin(this Self &&self) {
         return self.books_.begin();
     }
 
     template <typename Self>
-    auto end(this Self &&self) {
+    [[nodiscard]] auto end(this Self &&self) {
         return self.books_.end();
     }
 
     template <typename Self>
-    auto rbegin(this Self &&self) {
+    [[nodiscard]] auto rbegin(this Self &&self) {
         return self.books_.rbegin();
     }
 
     template <typename Self>
-    auto rend(this Self &&self) {
+    [[nodiscard]] auto rend(this Self &&self) {
         return self.books_.rend();
     }
 
-    size_type size() const { return books_.size(); }
+    [[nodiscard]] size_type size() const { return books_.size(); }
 
     void Clear() {
         books_.clear();
         authors_.clear();
     }
 
-    const BookContainer &GetBooks() const { return books_; }
+    [[nodiscard]] const BookContainer &GetBooks() const { return books_; }
 
-    const AuthorContainer &GetAuthors() const { return authors_; }
+    [[nodiscard]] const AuthorContainer &GetAuthors() const { return authors_; }
 
     template <typename... Args>
         requires requires(Args... args) { requires std::is_constructible_v<Book, Args...>; }
     Book &EmplaceBack(Args &&...args) {
         books_.emplace_back(std::forward<Args>(args)...);
         Book &book = *std::prev(books_.end());
-        authors_.emplace(book.author);
+        const auto [author_it, _] = authors_.emplace(book.author);
+        book.author = *author_it;
         return book;
     }
 
-    void PushBack(Book &&book) {
-        authors_.emplace(book.author);
-        books_.emplace_back(std::move(book));
-    }
-
-    void PushBack(const Book &book) {
-        authors_.emplace(book.author);
-        books_.emplace_back(book);
-    }
+    void PushBack(Book book) { EmplaceBack(std::move(book)); }
 
 private:
     BookContainer books_;

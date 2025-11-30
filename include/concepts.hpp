@@ -13,10 +13,14 @@ concept BookContainerLike = requires(T t, Book book) {
     requires std::ranges::range<T>;
     { t.size() } -> std::same_as<std::size_t>;
     t.clear();
+    requires std::same_as<std::ranges::range_value_t<T>, Book>;
 };
 
 template <typename T>
 concept BookIterator = std::forward_iterator<T> && std::convertible_to<typename T::value_type, const Book>;
+
+template <typename S, typename I>
+concept BookSentinel = BookIterator<I> && std::sentinel_for<S, I>;
 
 template <typename P>
 concept BookPredicate = std::is_invocable_r_v<bool, P, const Book &>;

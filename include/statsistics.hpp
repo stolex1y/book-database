@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <flat_map>
+#include <map>
 #include <random>
 #include <ranges>
 #include <string_view>
@@ -12,7 +13,7 @@
 namespace bookdb {
 
 template <BookContainerLike T, Comparator<std::string_view> Comparator = TransparentStringLess>
-auto BuildAuthorHistogramFlat(const BookDatabase<T> &db, Comparator comp = {}) {
+[[nodiscard]] auto BuildAuthorHistogramFlat(const BookDatabase<T> &db, Comparator comp = {}) {
     // N - books, M - authors
     // mem: O(M), time: O(N + M*log(M))
 
@@ -36,8 +37,35 @@ auto BuildAuthorHistogramFlat(const BookDatabase<T> &db, Comparator comp = {}) {
     return histogram;
 }
 
+template <BookContainerLike T, Comparator<std::string_view> Comparator = TransparentStringLess>
+[[nodiscard]] auto BuildAuthorHistogramFlatV2(const BookDatabase<T> &db, Comparator comp = {}) {
+    // N - books, M - authors
+    // mem: O(M), time: O(N*log(M))
+
+    std::flat_map<std::string_view, size_t, Comparator> histogram{comp};  // mem: O(M)
+    for (const auto &book : db) {                                         // time: O(N*log(M))
+        auto [it, _] = histogram.try_emplace(book.author, 0);
+        ++it->second;
+    }
+
+    return histogram;
+}
+
+template <BookContainerLike T, Comparator<std::string_view> Comparator = TransparentStringLess>
+[[nodiscard]] auto BuildAuthorHistogram(const BookDatabase<T> &db, Comparator comp = {}) {
+    // N - books, M - authors
+    // mem: O(M), time: O(N*log(M))
+
+    std::map<std::string_view, size_t, Comparator> histogram{comp};  // mem: O(M)
+    for (const auto &book : db) {                                    // time: O(N*log(M))
+        ++histogram[book.author];
+    }
+
+    return histogram;
+}
+
 template <BookContainerLike T, Comparator<Genre> Comparator = std::less<>>
-auto CalculateGenreRatings(const BookDatabase<T> &db, Comparator comp = {}) {
+[[nodiscard]] auto CalculateGenreRatings(const BookDatabase<T> &db, Comparator comp = {}) {
     // N - books, M - genres
     // mem: O(M), time: O(N + M*log(M))
 
@@ -51,29 +79,37 @@ auto CalculateGenreRatings(const BookDatabase<T> &db, Comparator comp = {}) {
     }
     std::ranges::sort(genres, comp);  // time: O(M*log(M))
 
-    struct Counter {
+    class Counter {
+    public:
         [[nodiscard]] double Average() const {
-            if (count == 0) {
+            if (count_ == 0) {
                 return 0;
             }
-            return rating / count;
+            return rating_ / count_;
         }
+
+        void Add(double r) {
+            ++count_;
+            rating_ += r;
+        }
+
+        [[nodiscard]] size_t Count() const { return count_; }
 
         auto operator<=>(const Counter &) const = default;
 
-        double rating;
-        size_t count;
+    private:
+        double rating_{};
+        size_t count_{};
     };
 
     std::unordered_map<Genre, Counter, std::hash<Genre>, std::equal_to<>> genre_rating_counters{
         genres.size()};            // mem: O(M)
     for (const Book &book : db) {  // time: O(N)
         auto &counter = genre_rating_counters[book.genre];
-        ++counter.count;
-        counter.rating += book.rating;
+        counter.Add(book.rating);
     }
 
-    std::erase_if(genres, [&](const auto genre) { return genre_rating_counters[genre].count == 0; });  // time: O(M)
+    std::erase_if(genres, [&](const auto genre) { return genre_rating_counters[genre].Count() == 0; });  // time: O(M)
 
     std::vector<double> average_rating_by_genre;  // mem: O(M)
     average_rating_by_genre.reserve(genres.size());
@@ -85,14 +121,60 @@ auto CalculateGenreRatings(const BookDatabase<T> &db, Comparator comp = {}) {
     return histogram;
 }
 
+template <BookContainerLike T, Comparator<Genre> Comparator = std::less<>>
+[[nodiscard]] auto CalculateGenreRatingsV2(const BookDatabase<T> &db, Comparator comp = {}) {
+    // N - books, M - genres
+    // mem: O(M), time: O(N*log(M) + M*log(M))
+
+    std::flat_map<Genre, double, Comparator> histogram{comp};  // mem: O(M)
+
+    class Counter {
+    public:
+        [[nodiscard]] double Average() const {
+            if (count_ == 0) {
+                return 0;
+            }
+            return rating_ / count_;
+        }
+
+        void Add(double r) {
+            ++count_;
+            rating_ += r;
+        }
+
+        [[nodiscard]] size_t Count() const { return count_; }
+
+        auto operator<=>(const Counter &) const = default;
+
+    private:
+        double rating_{};
+        size_t count_{};
+    };
+
+    std::flat_map<Genre, Counter, Comparator> genre_rating_counters{};  // mem: O(M)
+    for (const Book &book : db) {                                       // time: O(N*log(M))
+        auto [it, _] = genre_rating_counters.try_emplace(book.genre, Counter{});
+        it->second.Add(book.rating);
+    }
+
+    for (const auto &[genre, counter] : genre_rating_counters) {  // time: O(M*log(M))
+        if (counter.Count() > 0) {
+            histogram.emplace(genre, counter.Average());
+        }
+    }
+
+    return histogram;
+}
+
 template <BookContainerLike T>
-double CalculateAverageRating(const BookDatabase<T> &db) {
+[[nodiscard]] double CalculateAverageRating(const BookDatabase<T> &db) {
     return std::transform_reduce(db.begin(), db.end(), 0.0, std::plus{}, [](const Book &book) { return book.rating; }) /
            db.size();
 }
 
 template <BookContainerLike T>
-std::vector<std::reference_wrapper<const Book>> SampleRandomBooks(const BookDatabase<T> &db, size_t sample_count) {
+[[nodiscard]] std::vector<std::reference_wrapper<const Book>> SampleRandomBooks(const BookDatabase<T> &db,
+                                                                                size_t sample_count) {
     std::vector<std::reference_wrapper<const Book>> samples;
     samples.reserve(sample_count);
     std::sample(db.begin(), db.end(), std::back_inserter(samples), sample_count, std::mt19937{std::random_device{}()});
@@ -100,8 +182,8 @@ std::vector<std::reference_wrapper<const Book>> SampleRandomBooks(const BookData
 }
 
 template <BookContainerLike T, BookComparator Comparator>
-std::vector<std::reference_wrapper<const Book>> GetTopNBy(BookDatabase<T> &db, size_t count,
-                                                          Comparator comparator = {}) {
+[[nodiscard]] std::vector<std::reference_wrapper<const Book>> GetTopNBy(BookDatabase<T> &db, size_t count,
+                                                                        Comparator comparator = {}) {
     auto sorted_end = std::next(db.begin(), count);
     std::partial_sort(db.begin(), sorted_end, db.end(), comp::InvertedComparator{std::move(comparator)});
     return {db.begin(), sorted_end};
